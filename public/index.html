@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Http Video Streaming</title>
+
+    <style>
+        body {
+            margin: 40px auto;
+            max-width: 650px;
+            background-color: #444;
+        }
+
+        #links {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #links a {
+            font-size: 50px;
+            color: red;
+        }
+
+    </style>
+
+</head>
+<body>
+    
+    <video id="videoPlayer" width="650" controls muted="muted" autoplay>
+        <source src="/video?video=" type="video/mp4" id="vid-src">
+    </video>
+
+    <div id="links">
+
+
+    </div>
+
+</body>
+
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const myParam = urlParams.get('video');
+
+    const getVidSrc = document.getElementById('vid-src');
+    getVidSrc.src += myParam;
+
+    async function getData() {
+    const url = "http://127.0.0.1:3000/videos";
+        const response = await fetch(url);
+        if (!response.ok) {
+        throw new Error(`Response status: ${response.status}`);
+        }
+        const json = await response.json();
+        Object.keys(json).forEach(function(key) {
+            const videoName = json[key].filename;
+            const div = document.getElementById('links');
+            const p = document.createElement('a');
+            const textNode = document.createTextNode(videoName);
+            p.href = `http://127.0.0.1:3000/?video=${videoName}`;
+            p.appendChild(textNode)
+            div.appendChild(p)
+        });
+    }
+
+
+    getData();
+</script>
+
+</html>
