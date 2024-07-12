@@ -1,12 +1,15 @@
 const express = require('express');
 const video = require('./routes/video');
 const dotenv = require('dotenv');
+const logger = require('morgan');
 
 
 dotenv.config();
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({extended: true})); 
+app.use(logger('dev'))
+
 
 app.use('/',video);
 

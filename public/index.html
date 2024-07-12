@@ -9,7 +9,25 @@
         body {
             margin: 40px auto;
             max-width: 650px;
-            background-color: #444;
+            background-color: black;
+        }
+
+        .select-p {
+            color: wheat;
+            font-size: 40px;
+            text-align: center;
+        }
+
+        video {
+            background-color: wheat;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            font-size: 50px;
         }
 
         #links {
@@ -20,8 +38,10 @@
         }
 
         #links a {
-            font-size: 50px;
-            color: red;
+            font-size: 40px;
+            color: white;
+            text-decoration: none;
+            border-bottom: 1px solid #9E9E9E;
         }
 
     </style>
@@ -30,8 +50,14 @@
 <body>
     
     <video id="videoPlayer" width="650" controls muted="muted" autoplay>
-        <source src="/video?video=" type="video/mp4" id="vid-src">
+        <source src="" type="video/mp4" id="vid-src">
     </video>
+
+    <p class="select-p" id="select-p">Select a video to display it</p>
+    
+    <h1>Videos</h1>
+
+    <button><a href="http://127.0.0.1:3000/upload">Upload Video</a></button>
 
     <div id="links">
 
@@ -43,29 +69,37 @@
 <script>
     const urlParams = new URLSearchParams(window.location.search);
     const myParam = urlParams.get('video');
-
-    const getVidSrc = document.getElementById('vid-src');
-    getVidSrc.src += myParam;
-
-    async function getData() {
-    const url = "http://127.0.0.1:3000/videos";
-        const response = await fetch(url);
-        if (!response.ok) {
-        throw new Error(`Response status: ${response.status}`);
-        }
-        const json = await response.json();
-        Object.keys(json).forEach(function(key) {
-            const videoName = json[key].filename;
-            const div = document.getElementById('links');
-            const p = document.createElement('a');
-            const textNode = document.createTextNode(videoName);
-            p.href = `http://127.0.0.1:3000/?video=${videoName}`;
-            p.appendChild(textNode)
-            div.appendChild(p)
-        });
+    const video = document.getElementById('videoPlayer')
+    if(myParam) {
+        video.style.display = "block"
+        const selectP = document.getElementById('select-p')
+        selectP.style.display = 'none';
+        const getVidSrc = document.getElementById('vid-src');
+        const path = `/video/${myParam}`;
+        getVidSrc.src = path;
+    } else {
+        video.remove()
     }
 
+    async function getData() {
+        const url = "http://127.0.0.1:3000/videos";
+            const response = await fetch(url);
+            if (!response.ok) {
+            throw new Error(`Response status: ${response.status}`);
+            }
 
+            
+            const json = await response.json();
+            Object.keys(json).forEach(function(key) {
+                const videoName = json[key].filename;
+                const div = document.getElementById('links');
+                const p = document.createElement('a');
+                const textNode = document.createTextNode(videoName);
+                p.href = `http://127.0.0.1:3000/?video=${videoName}`;
+                p.appendChild(textNode)
+                div.appendChild(p)
+            });
+    }
     getData();
 </script>
 

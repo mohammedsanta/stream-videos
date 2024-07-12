@@ -1,18 +1,29 @@
 const express = require('express');
 const Router = express.Router()
-const { MongoClient, GridFSBucket } = require('mongodb');
-const mongodb = require('mongodb');
-const { upload } = require('../helper/multer');
-const { initVideo } = require('../helper/initiateVideo');
+const mongoose = require('mongoose')
+const { upload } = require('../helper/upload');
 
-Router.post('/api/upload', upload.single('file'),async (req, res) => {
-    
-    const video = req.file;
-    const videoName = (video.filename).split('.')[0]
-    const path = `${video.destination}${video.filename}`
+// start MONGO
 
-    await initVideo(res,path,videoName);
+try {
+  mongoose.connect('mongodb://127.0.0.1:27017/videos');
+} catch (error) {
+  console.log(error);
+}
+process.on('unhandledRejection', error => {
+  console.log('unhandledRejection', error.message);
+});
+ 
+//creating bucket
+let bucket;
+mongoose.connection.on("connected", async () => {
+  var db = mongoose.connections[0].db;
+  bucket = new mongoose.mongo.GridFSBucket(db);
+});
 
+// End Mongo
+
+Router.post('/api/upload', upload().single('file'),async (req, res) => {  
     try {
         res.status(200).json({ success: "file upload successful" })
     } catch (error) {
@@ -21,75 +32,92 @@ Router.post('/api/upload', upload.single('file'),async (req, res) => {
 })
 
 // Streaming video
-Router.get('/mongo-video', async (req, res) => {
+Router.get('/video/:filename', async (req, res) => {
 
-    const client = new MongoClient(process.env.MONGO_URL);
+  const { filename } = req.params;
 
-    const db = client.db(process.env.FILE_DB_NAME);
-    const bucket = new mongodb.GridFSBucket(db);
+  try {
+    // check if file exists
+    const file = await bucket
+      .find({ filename })
+      .toArray()
 
-    const video = bucket.openDownloadStreamByName('output-video-with-audio')
+    if(!file.length) {
+      return res.status(404).json("File Not Found");
+    }
 
-    video.pipe(res);
-  
+    // set headers
+    res.set("Content-Type", file[0].contentType);
+    res.set("Content-Disposition", `attachment; filename=${file[0].filename}.mp4`);
+
+    // create a stream to read from bucket
+    const downloadStream = bucket.openDownloadStream(
+      new mongoose.Types.ObjectId(file[0]._id)
+    )
+
+    console.log(new mongoose.Types.ObjectId(file[0]._id))
+
+    // pipe the stream to the response
+    downloadStream.pipe(res)
+
+  } catch (err) {
+    console.log(err)
+    res.status(404).json(res.status(400).json({
+      error: { text: `Unable to download file`, error },
+    }))
+  }
+
 });
 
 // Streaming videos
 Router.get('/videos', async (req, res) => {
 
-    const client = new MongoClient(process.env.MONGO_URL);
+  const files = bucket.find()
+  const cursor = await files.toArray();
 
-    await client.connect();
-    const db = client.db(process.env.FILE_DB_NAME);
-    const collection = db.collection('fs.files');
-
-    const findResult = await collection.find({}).toArray()
-
-    res.json(findResult);
+  res.json(cursor);
   
 });
 
-Router.get('/video', async (req, res) => {
-
-    const name = req.query.video;
-
-    console.log(name)
-
-    const client = new MongoClient(process.env.MONGO_URL);
-
-    const db = client.db(process.env.FILE_DB_NAME);
-    const bucket = new mongodb.GridFSBucket(db);
-
-    const video = bucket.openDownloadStreamByName(name)
-
-    video.pipe(res);
-  
-});
-
-Router.get('/delete',async (req,res) => {
-
-    const name = req.query.video;
-    console.log(name);
-
-    const client = new MongoClient(process.env.MONGO_URL);
-    await client.connect();
-    const db = client.db(process.env.FILE_DB_NAME);
-    const collection = db.collection('fs.files');
-    const result = await collection.find({ filename: name  }).toArray()
-
-    console.log(result.length)
-
-    if(!result.length) return res.status(400).send("Video Not Found to Delete");
-
-    const video = result[0]
-
-    const bucket = new mongodb.GridFSBucket(db);
-    const deleteFile = await bucket.delete(new mongodb.ObjectId(video._id));
-
-
-    console.log(deleteFile);
-
-    res.send("Video has been Deleted");
+Router.get('/delete/:filename',async (req,res) => {
+  const { filename } = req.params;
+  try {
+    const file = await bucket.find({ filename }).toArray()
+    if(!file.length) return res.status(404).json("File not Found"); 
+    bucket.delete( new mongoose.Types.ObjectId(file[0]._id) );
+    res.status(200).json({ text: "File Delete Successfuly" })
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ text: "Unable to Delete File:", err })
+  }
 })
+
+// app.put("/rename/file/:fileId", async (req, res) => {
+//   try {
+//     const { fileId } = req.params;
+//     const { filename } = req.body;
+//     await bucket.rename(new mongoose.Types.ObjectId(fileId), filename);
+//     res.status(200).json({ text: "File renamed successfully !" });
+//   } catch (error) {
+//     console.log(error);
+//     res.status(400).json({
+//       error: { text: `Unable to rename file`, error },
+//     });
+//   }
+// });
+
+// // Delete a file
+// app.delete("/delete/file/:fileId", async (req, res) => {
+//   try {
+//     const { fileId } = req.params;
+//     await bucket.delete(new mongoose.Types.ObjectId(fileId));
+//     res.status(200).json({ text: "File deleted successfully !" });
+//   } catch (error) {
+//     console.log(error);
+//     res.status(400).json({
+//       error: { text: `Unable to delete file`, error },
+//     });
+//   }
+// });
 
 module.exports = Router
